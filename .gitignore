@@ -1,0 +1,65 @@
+# Fichiers Terraform
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+.terraform/
+.terraform.lock.hcl
+terraform.rc
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+.terraformrc
+terraform.rc
+terraform.tfvars
+terraform.tfvars.json
+
+# Fichiers Ansible
+*.retry
+ansible/inventory.ini
+ansible/*.vault
+ansible/group_vars/*/vault.yml
+ansible/host_vars/*/vault.yml
+ansible/roles/*/files/*.pem
+ansible/roles/*/files/*.key
+ansible/roles/*/files/*.crt
+
+# Fichiers système
+.DS_Store
+Thumbs.db
+*.log
+*.bak
+*.swp
+*~
+
+# Fichiers d'environnement
+.env
+.env.*
+!.env.example
+
+# Fichiers de credentials
+*.pem
+*.key
+*.crt
+*.csr
+*.srl
+*.p12
+*.pfx
+
+# Fichiers de cache
+.cache/
+__pycache__/
+*.pyc
+.pytest_cache/
+
+# Fichiers de build
+dist/
+build/
+*.egg-info/
+
+# Fichiers IDE
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace 
