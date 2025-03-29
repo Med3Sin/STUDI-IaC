@@ -14,10 +14,14 @@ Ce projet crée une infrastructure cloud sur AWS avec une instance EC2 (serveur 
     │   ├── main.tf       # Configuration de l'instance EC2 et du groupe de sécurité
     │   ├── variables.tf  # Variables spécifiques au module EC2
     │   └── outputs.tf    # Sorties du module EC2
-    └── s3/               # Module pour le bucket S3
-        ├── main.tf       # Configuration du bucket S3
-        ├── variables.tf  # Variables spécifiques au module S3
-        └── outputs.tf    # Sorties du module S3
+    ├── s3/               # Module pour le bucket S3
+    │   ├── main.tf       # Configuration du bucket S3
+    │   ├── variables.tf  # Variables spécifiques au module S3
+    │   └── outputs.tf    # Sorties du module S3
+    └── rds/              # Module pour la base de données RDS
+        ├── main.tf       # Configuration de l'instance RDS
+        ├── variables.tf  # Variables spécifiques au module RDS
+        └── outputs.tf    # Sorties du module RDS
 ```
 
 ## Composants
@@ -32,6 +36,12 @@ Ce projet crée une infrastructure cloud sur AWS avec une instance EC2 (serveur 
 - Nom unique généré automatiquement
 - Configuration sécurisée (accès public bloqué)
 - Support des tags pour une meilleure organisation
+
+### Base de données RDS
+- Instance MySQL éligible au niveau gratuit (par défaut `db.t3.micro`)
+- Stockage initial de 20 Go (par défaut)
+- Configuration via un module dédié (`modules/rds`)
+- Gestion des identifiants via `terraform.tfvars` (voir section Configuration)
 
 ## Prérequis
 
@@ -92,9 +102,28 @@ export AWS_SECRET_ACCESS_KEY="votre_secret_key"
 export AWS_REGION="eu-west-3"
 ```
 
+## Configuration des Variables Sensibles (Base de Données)
+
+Pour configurer les identifiants de la base de données RDS (nom de la base, utilisateur, mot de passe), vous devez créer un fichier nommé `terraform.tfvars` à la racine du projet. Ce fichier **ne doit pas** être ajouté à votre dépôt Git.
+
+1.  **Créez le fichier `terraform.tfvars`** à la racine du projet.
+2.  **Ajoutez les variables suivantes** dans ce fichier en remplaçant les valeurs d'exemple par vos propres informations sécurisées :
+
+    ```hcl
+    # terraform.tfvars - NE PAS COMMITTER DANS GIT
+
+    db_name     = "votre_nom_de_base"
+    db_username = "votre_nom_utilisateur"
+    db_password = "votre_mot_de_passe_securise"
+    ```
+
+3.  **Assurez-vous que `*.tfvars` est bien présent dans votre fichier `.gitignore`** pour éviter de committer accidentellement ce fichier. Le fichier `.gitignore` fourni avec ce projet inclut déjà cette règle.
+
+Terraform chargera automatiquement les valeurs de ce fichier lors de l'exécution des commandes `plan` et `apply`.
+
 ## Utilisation
 
-1. Initialiser Terraform :
+1. Initialiser Terraform (installe les providers et les modules) :
 ```bash
 terraform init
 ```
@@ -120,20 +149,38 @@ terraform destroy
 - `aws_region` : Région AWS à utiliser (défaut: eu-west-3)
 - `environment` : Environnement (dev, prod, etc.)
 - `instance_type` : Type d'instance EC2 (défaut: t2.micro)
+- `db_name` : Nom de la base de données RDS (défini dans `terraform.tfvars`)
+- `db_username` : Nom d'utilisateur de la base de données RDS (défini dans `terraform.tfvars`)
+- `db_password` : Mot de passe de la base de données RDS (défini dans `terraform.tfvars`, sensible)
 
 ### Variables du Module EC2
-- `ami_id` : ID de l'AMI à utiliser
 - `instance_name` : Nom de l'instance EC2
+- `instance_type` : Type d'instance EC2 (défaut: t2.micro)
 - `tags` : Tags à appliquer aux ressources
 
 ### Variables du Module S3
 - `bucket_name` : Nom de base du bucket S3
 - `tags` : Tags à appliquer aux ressources
 
+### Variables du Module RDS
+- `db_identifier` : Identifiant unique de l'instance RDS
+- `allocated_storage` : Espace de stockage en Go (défaut: 20)
+- `engine` : Moteur de base de données (défaut: mysql)
+- `engine_version` : Version du moteur (défaut: 8.0)
+- `instance_class` : Classe d'instance (défaut: db.t3.micro)
+- `db_name` : Nom de la base de données (hérité de la variable racine)
+- `db_username` : Nom d'utilisateur (hérité de la variable racine)
+- `db_password` : Mot de passe (hérité de la variable racine, sensible)
+- `parameter_group_name` : Groupe de paramètres (défaut: null)
+- `publicly_accessible` : Accessibilité publique (défaut: false)
+- `tags` : Tags à appliquer aux ressources
+
 ## Sorties
 
 - `bucket_name` : Nom du bucket S3 créé
 - `instance_public_ip` : IP publique de l'instance EC2
+- `db_instance_address` : Adresse (endpoint) de l'instance RDS
+- `db_instance_name` : Nom de la base de données (DB Name) de l'instance RDS
 
 ## Sécurité
 
@@ -162,23 +209,22 @@ Les ressources sont taguées avec :
 ### Architecture Technique
 
 #### Instance EC2
-- **Système d'exploitation** : Amazon Linux 2 (AMI ID: ami-06903a0d7dc8effb5)
+- **Système d'exploitation** : Amazon Linux 2 (AMI trouvée dynamiquement via `data "aws_ami"`)
   - Distribution optimisée pour AWS
   - Support natif des services AWS
-  - Mises à jour de sécurité automatiques
+  - Mises à jour de sécurité via `yum update` dans le script d'initialisation
 
 - **Configuration Java** :
-  - Version : Java 11 (Amazon Corretto)
-  - Distribution : Amazon Corretto (optimisée pour AWS)
-  - Installation : Via yum package manager
-  - Configuration : Variables d'environnement JAVA_HOME configurées automatiquement
+  - Version : Java 11 (OpenJDK)
+  - Installation : Via `amazon-linux-extras install java-openjdk11 -y`
+  - Configuration : Variable d'environnement `JAVA_HOME` définie dans le service systemd de Tomcat
 
 - **Serveur Tomcat** :
-  - Version : Tomcat 
+  - Version : Tomcat 9.0.102 (téléchargée depuis dlcdn.apache.org)
   - Port : 8080
-  - Installation : Via yum package manager
-  - Service : Configuré pour démarrer automatiquement
-  - Configuration : Paramètres par défaut sécurisés
+  - Installation : Manuelle dans `/opt/tomcat` via script `user_data`
+  - Service : Fichier de service systemd (`/etc/systemd/system/tomcat.service`) créé et activé via `user_data` pour démarrage automatique
+  - Configuration : Paramètres par défaut, exécuté via `startup.sh`/`shutdown.sh`
 
 - **Sécurité** :
   - Groupe de sécurité dédié
@@ -208,18 +254,51 @@ Les ressources sont taguées avec :
 ### Scripts d'Initialisation
 
 #### Script EC2 (user_data)
+Le script suivant est exécuté au premier démarrage de l'instance pour installer et configurer Java et Tomcat :
 ```bash
 #!/bin/bash
-# Mise à jour du système
-yum update -y
+# Mise à jour du système pour avoir les dernières versions des paquets
+sudo yum update -y
 
-# Installation de Java 11
-yum install java-11-amazon-corretto -y
+# Installer Java
+amazon-linux-extras install java-openjdk11 -y
 
-# Installation de Tomcat
-yum install tomcat -y
+# Installer Tomcat
+mkdir -p /opt/tomcat
+cd /opt/tomcat
+wget https://dlcdn.apache.org/tomcat/tomcat-9/v9.0.102/bin/apache-tomcat-9.0.102.tar.gz
+tar -xzvf apache-tomcat-9.0.102.tar.gz
+mv apache-tomcat-9.0.102/* /opt/tomcat/
+rm apache-tomcat-9.0.102.tar.gz
 
-# Démarrage et activation de Tomcat
-systemctl start tomcat
+# Configurer les permissions
+chmod +x /opt/tomcat/bin/*.sh
+
+# Démarrer Tomcat (initialement, avant la création du service)
+# /opt/tomcat/bin/startup.sh # Commenté car le service le fera
+
+# Créer un service systemd pour Tomcat
+cat > /etc/systemd/system/tomcat.service << 'EOL'
+[Unit]
+Description=Apache Tomcat
+After=network.target
+
+[Service]
+Type=forking
+Environment=JAVA_HOME=/usr/lib/jvm/java-11-openjdk
+Environment=CATALINA_PID=/opt/tomcat/temp/tomcat.pid
+Environment=CATALINA_HOME=/opt/tomcat
+Environment=CATALINA_BASE=/opt/tomcat
+
+ExecStart=/opt/tomcat/bin/startup.sh
+ExecStop=/opt/tomcat/bin/shutdown.sh
+
+[Install]
+WantedBy=multi-user.target
+EOL
+
+# Activer et démarrer le service
+systemctl daemon-reload
 systemctl enable tomcat
+systemctl start tomcat
 ```

@@ -1,9 +1,25 @@
 # Module EC2 - Configuration de l'instance EC2 et de ses ressources associées
 
+# Recherche de l'AMI Amazon Linux 2 le plus récent
+data "aws_ami" "amazon_linux_2" {
+  most_recent = true
+  owners      = ["amazon"]
+
+  filter {
+    name   = "name"
+    values = ["amzn2-ami-hvm-*-x86_64-gp2"]
+  }
+
+  filter {
+    name   = "virtualization-type"
+    values = ["hvm"]
+  }
+}
+
 # Création de l'instance EC2 principale
 resource "aws_instance" "instance" {
-  # Spécification de l'AMI (Amazon Machine Image) à utiliser
-  ami           = var.ami_id
+  # Spécification de l'AMI (Amazon Machine Image) à utiliser - Trouvée dynamiquement
+  ami           = data.aws_ami.amazon_linux_2.id
   # Type d'instance EC2 (t2.micro, t2.small, etc.)
   instance_type = var.instance_type
 
@@ -100,4 +116,4 @@ resource "aws_security_group" "security_group" {
 
   # Application des tags au groupe de sécurité
   tags = var.tags
-} 
+}
